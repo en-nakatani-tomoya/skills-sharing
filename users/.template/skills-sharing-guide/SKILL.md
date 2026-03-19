@@ -75,28 +75,32 @@ skills-sharing/
 
 ### 新規参加者のオンボーディング
 
-`join` コマンドで、テンプレートコピー → CODEOWNERS 追加 → コミット → PR 作成まで一括で行える。
+以下の手順でユーザーを案内すること。
 
 ```bash
-# 1. リポジトリを clone
+# 1. リポジトリを clone（まだの場合）
 git clone git@github.com:en-nakatani-tomoya/skills-sharing.git ~/skills-sharing
 cd ~/skills-sharing
 
-# 2. join コマンドを実行（ディレクトリ作成 → CODEOWNERS → commit → PR 作成）
-./scripts/skills-browse join --me <github-username>
+# 2. join コマンドを実行（ディレクトリ作成 + CODEOWNERS 追加）
+./scripts/skills-browse join
 
-# 3. PR がマージされたら、ローカル環境をセットアップ
-./scripts/skills-browse setup --me <github-username>
+# 3. join が表示するコマンドに従って PR を作成
+#    (git checkout -b, git add, git commit, git push, gh pr create)
 
-# 4. 環境が正しいか確認
-./scripts/skills-browse doctor --me <github-username>
+# 4. PR がマージされたら、ローカル環境をセットアップ
+./scripts/skills-browse setup
+
+# 5. 環境が正しいか確認
+./scripts/skills-browse doctor
 ```
 
-join コマンドは以下を自動的に行う：
+join コマンドのデフォルト動作：
 - `users/.template/` から `users/<name>/` を作成
 - CODEOWNERS にエントリーを追加
-- ブランチ作成 & コミット
-- push & PR 作成（gh CLI がある場合）
+- 続きの git / gh コマンドを表示（実行はしない）
+
+`--auto` を付けると commit → push → PR 作成まで自動実行する（dirty worktree チェックあり）。
 
 初回 PR は CODEOWNERS の変更を含むため、メンテナーの approve が必要。
 
@@ -119,9 +123,10 @@ join コマンドは以下を自動的に行う：
 
 ```bash
 # --- オンボーディング ---
-./scripts/skills-browse join --me <name>              # 参加（初回セットアップ一括実行）
-./scripts/skills-browse setup --me <name>             # ローカル環境セットアップ（シンボリックリンク作成）
-./scripts/skills-browse doctor --me <name>            # ローカル環境の診断
+./scripts/skills-browse join                          # 参加（ファイル作成 + 手順案内）
+./scripts/skills-browse join --auto                   # 参加（commit / push / PR 作成まで自動）
+./scripts/skills-browse setup                         # ローカル環境セットアップ（シンボリックリンク作成）
+./scripts/skills-browse doctor                        # ローカル環境の診断
 
 # --- ブラウズ ---
 ./scripts/skills-browse list                          # 全スキル一覧

@@ -1,37 +1,14 @@
 # Contributing
 
-## 初回参加
+## オンボーディング
 
-```bash
-# 1. テンプレートから自分のディレクトリを作成
-cp -r users/.template users/<your-github-username>
-
-# 2. README.md を編集
-vi users/<your-github-username>/README.md
-
-# 3. PR を作成
-git checkout -b add-<your-github-username>
-git add users/<your-github-username>/
-git commit -m "Add <your-github-username>"
-git push -u origin HEAD
-gh pr create --title "Add <your-github-username>"
-```
-
-初回 PR では CODEOWNERS への追加も含めてください（メンテナーが approve します）。
+参加手順はエージェント経由で案内されます。
+clone 後、エージェントに `users/.template/skills-sharing-guide/SKILL.md` を読ませてください。
 
 ## スキルの追加・更新
 
 自分のディレクトリ (`users/<your-github-username>/`) への変更のみを含む PR は**自動マージ**されます。
-
-```bash
-git checkout -b update-my-skills
-# スキルを追加・編集
-git add users/<your-github-username>/
-git commit -m "Add new skill: <skill-name>"
-git push -u origin HEAD
-gh pr create --title "Update <your-github-username> skills"
-# → 自動 approve & マージ
-```
+初回の参加 PR は CODEOWNERS の変更を含むため、メンテナーの approve が必要です。
 
 ## ディレクトリ構成
 
@@ -72,7 +49,7 @@ description: このスキルが何をするか（1行で）
 
 `name` と `description` のフロントマターは、ブラウズツールでの一覧表示に使われます。
 
-## 他の人のスキルを使う
+## フォークモデル
 
 他の人のスキルを使いたい場合は、**自分のディレクトリにコピー（フォーク）**してください。
 
