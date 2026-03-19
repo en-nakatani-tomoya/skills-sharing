@@ -10,6 +10,12 @@ starter-kit/     推奨スキル集（レビュー必須）
 scripts/         ブラウズ・フォーク用ツール
 ```
 
+## 前提条件
+
+- [gh CLI](https://cli.github.com/) がインストール・認証済みであること
+  - `gh auth login` で GitHub にログイン済みであること
+- `--me` オプションで明示的にユーザー名を指定する場合は `gh` CLI は不要
+
 ## 参加方法
 
 1. このリポジトリを clone する

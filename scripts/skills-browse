@@ -33,21 +33,21 @@ ${BOLD}COMMANDS${RESET}
   users                        参加ユーザー一覧
 
 ${BOLD}OPTIONS (join)${RESET}
-  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh CLI から取得）
   --gh-user <name>             CODEOWNERS 用の GitHub ユーザー名（--me と異なる場合）
 
 ${BOLD}OPTIONS (list)${RESET}
   --user <name>                特定ユーザーのスキルのみ表示
 
 ${BOLD}OPTIONS (install)${RESET}
-  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh CLI から取得）
 
 ${BOLD}OPTIONS (setup)${RESET}
-  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh CLI から取得）
   --agent <claude|cursor|all>  対象エージェント (デフォルト: all)
 
 ${BOLD}OPTIONS (doctor)${RESET}
-  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh CLI から取得）
 
 ${BOLD}EXAMPLES${RESET}
   skills-browse join --me my-name
@@ -67,8 +67,7 @@ get_my_username() {
     echo "$me"
     return
   fi
-  gh api user --jq '.login' 2>/dev/null || \
-    git config user.name 2>/dev/null | tr ' ' '-' | tr '[:upper:]' '[:lower:]' || true
+  gh api user --jq '.login' 2>/dev/null || true
 }
 
 get_gh_username() {
@@ -260,7 +259,10 @@ cmd_install() {
 
   me=$(get_my_username "$me")
   if [[ -z "$me" ]]; then
-    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    echo -e "${RED}Error: Cannot determine your username.${RESET}" >&2
+    echo -e "${RED}  Install gh CLI: https://cli.github.com/${RESET}" >&2
+    echo -e "${RED}  Then run: gh auth login${RESET}" >&2
+    echo -e "${RED}  Or specify explicitly: --me <github-username>${RESET}" >&2
     exit 1
   fi
 
@@ -321,7 +323,10 @@ cmd_join() {
 
   me=$(get_my_username "$me")
   if [[ -z "$me" ]]; then
-    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    echo -e "${RED}Error: Cannot determine your username.${RESET}" >&2
+    echo -e "${RED}  Install gh CLI: https://cli.github.com/${RESET}" >&2
+    echo -e "${RED}  Then run: gh auth login${RESET}" >&2
+    echo -e "${RED}  Or specify explicitly: --me <github-username>${RESET}" >&2
     exit 1
   fi
 
@@ -407,7 +412,10 @@ cmd_doctor() {
 
   me=$(get_my_username "$me")
   if [[ -z "$me" ]]; then
-    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    echo -e "${RED}Error: Cannot determine your username.${RESET}" >&2
+    echo -e "${RED}  Install gh CLI: https://cli.github.com/${RESET}" >&2
+    echo -e "${RED}  Then run: gh auth login${RESET}" >&2
+    echo -e "${RED}  Or specify explicitly: --me <github-username>${RESET}" >&2
     exit 1
   fi
 
@@ -416,6 +424,23 @@ cmd_doctor() {
   echo ""
 
   local issues=0
+
+  # Check 0: gh CLI
+  if command -v gh &>/dev/null; then
+    local gh_login
+    gh_login=$(gh api user --jq '.login' 2>/dev/null || true)
+    if [[ -n "$gh_login" ]]; then
+      echo -e "  ${GREEN}✓${RESET} gh CLI authenticated as ${CYAN}${gh_login}${RESET}"
+    else
+      echo -e "  ${YELLOW}△${RESET} gh CLI installed but not authenticated"
+      echo -e "    ${DIM}Run: gh auth login${RESET}"
+      issues=$((issues + 1))
+    fi
+  else
+    echo -e "  ${RED}✗${RESET} gh CLI not installed"
+    echo -e "    ${DIM}Install: https://cli.github.com/${RESET}"
+    issues=$((issues + 1))
+  fi
 
   # Check 1: User directory exists
   local my_dir="$USERS_DIR/$me"
@@ -512,7 +537,10 @@ cmd_setup() {
 
   me=$(get_my_username "$me")
   if [[ -z "$me" ]]; then
-    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    echo -e "${RED}Error: Cannot determine your username.${RESET}" >&2
+    echo -e "${RED}  Install gh CLI: https://cli.github.com/${RESET}" >&2
+    echo -e "${RED}  Then run: gh auth login${RESET}" >&2
+    echo -e "${RED}  Or specify explicitly: --me <github-username>${RESET}" >&2
     exit 1
   fi
 
