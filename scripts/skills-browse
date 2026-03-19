@@ -23,6 +23,8 @@ ${BOLD}USAGE${RESET}
   skills-browse <command> [options]
 
 ${BOLD}COMMANDS${RESET}
+  join                         このリポジトリに参加する（初回セットアップ）
+  doctor                       ローカル環境の状態を診断する
   list                         全スキルの一覧を表示
   search <keyword>             キーワードで SKILL.md を全文検索
   show <user>/<skill>          スキルの詳細を表示
@@ -30,21 +32,28 @@ ${BOLD}COMMANDS${RESET}
   setup                        ローカル環境のセットアップ（シンボリックリンク作成）
   users                        参加ユーザー一覧
 
+${BOLD}OPTIONS (join)${RESET}
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
+  --gh-user <name>             CODEOWNERS 用の GitHub ユーザー名（--me と異なる場合）
+
 ${BOLD}OPTIONS (list)${RESET}
   --user <name>                特定ユーザーのスキルのみ表示
 
 ${BOLD}OPTIONS (install)${RESET}
-  --me <name>                  自分の GitHub ユーザー名（省略時は git config から取得）
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
 
 ${BOLD}OPTIONS (setup)${RESET}
-  --me <name>                  自分の GitHub ユーザー名（省略時は git config から取得）
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
   --agent <claude|cursor|all>  対象エージェント (デフォルト: all)
 
+${BOLD}OPTIONS (doctor)${RESET}
+  --me <name>                  自分の GitHub ユーザー名（省略時は gh/git から取得）
+
 ${BOLD}EXAMPLES${RESET}
+  skills-browse join --me my-name
+  skills-browse doctor
   skills-browse list
-  skills-browse list --user sample-user
   skills-browse search "テスト"
-  skills-browse show sample-user/test-generator
   skills-browse install sample-user/test-generator
   skills-browse setup --agent claude
 EOF
@@ -58,7 +67,17 @@ get_my_username() {
     echo "$me"
     return
   fi
-  git config user.name 2>/dev/null | tr ' ' '-' | tr '[:upper:]' '[:lower:]' || true
+  gh api user --jq '.login' 2>/dev/null || \
+    git config user.name 2>/dev/null | tr ' ' '-' | tr '[:upper:]' '[:lower:]' || true
+}
+
+get_gh_username() {
+  local gh_user="${1:-}"
+  if [[ -n "$gh_user" ]]; then
+    echo "$gh_user"
+    return
+  fi
+  gh api user --jq '.login' 2>/dev/null || true
 }
 
 parse_frontmatter() {
@@ -288,6 +307,197 @@ cmd_install() {
   echo -e "${DIM}  3. git commit & push${RESET}"
 }
 
+cmd_join() {
+  local me=""
+  local gh_user=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --me) me="$2"; shift 2 ;;
+      --gh-user) gh_user="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  me=$(get_my_username "$me")
+  if [[ -z "$me" ]]; then
+    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    exit 1
+  fi
+
+  gh_user=$(get_gh_username "$gh_user")
+  if [[ -z "$gh_user" ]]; then
+    gh_user="$me"
+    echo -e "${YELLOW}Note: Could not detect GitHub username. Using '${me}' for CODEOWNERS.${RESET}"
+    echo -e "${YELLOW}  If this is wrong, re-run with --gh-user <github-username>${RESET}"
+    echo ""
+  fi
+
+  local my_dir="$USERS_DIR/$me"
+
+  # Step 1: Check if already joined
+  if [[ -d "$my_dir" ]]; then
+    echo -e "${YELLOW}Directory users/${me} already exists. Skipping creation.${RESET}"
+  else
+    echo -e "${BOLD}[1/4] Creating directory from template...${RESET}"
+    cp -r "$USERS_DIR/.template" "$my_dir"
+    echo -e "${GREEN}  Created users/${me}/${RESET}"
+  fi
+
+  # Step 2: Update CODEOWNERS
+  local codeowners="$REPO_DIR/CODEOWNERS"
+  local owner_entry="/users/${me}/   @${gh_user}"
+
+  if grep -q "/users/${me}/" "$codeowners" 2>/dev/null; then
+    echo -e "${DIM}[2/4] CODEOWNERS entry already exists. Skipping.${RESET}"
+  else
+    echo -e "${BOLD}[2/4] Adding CODEOWNERS entry...${RESET}"
+    local marker="# Shared resources require maintainer review"
+    sed -i '' "s|${marker}|${owner_entry}\n\n${marker}|" "$codeowners"
+    echo -e "${GREEN}  Added: ${owner_entry}${RESET}"
+  fi
+
+  # Step 3: Create branch and commit
+  echo -e "${BOLD}[3/4] Creating commit...${RESET}"
+  local branch="add-${me}"
+
+  git -C "$REPO_DIR" checkout -b "$branch" 2>/dev/null || git -C "$REPO_DIR" checkout "$branch" 2>/dev/null || true
+  git -C "$REPO_DIR" add "users/${me}/" CODEOWNERS
+  git -C "$REPO_DIR" commit -m "Add ${me}" --quiet
+  echo -e "${GREEN}  Committed on branch ${branch}${RESET}"
+
+  # Step 4: Push and create PR
+  echo -e "${BOLD}[4/4] Pushing and creating PR...${RESET}"
+  git -C "$REPO_DIR" push -u origin "$branch" --quiet 2>&1
+
+  if command -v gh &>/dev/null; then
+    local pr_url
+    pr_url=$(gh pr create \
+      --repo "$(git -C "$REPO_DIR" remote get-url origin)" \
+      --title "Add ${me}" \
+      --body "## New member: ${me}
+
+- Created \`users/${me}/\` from template
+- Added CODEOWNERS entry: \`${owner_entry}\`" \
+      2>&1) || true
+
+    if [[ -n "$pr_url" ]]; then
+      echo -e "${GREEN}  PR created: ${pr_url}${RESET}"
+    fi
+  else
+    echo -e "${DIM}  gh CLI not found. Create a PR manually on GitHub.${RESET}"
+  fi
+
+  echo ""
+  echo -e "${BOLD}Done!${RESET} Next steps:"
+  echo -e "  1. Wait for PR to be merged (CODEOWNERS change requires maintainer approval)"
+  echo -e "  2. Run ${CYAN}./scripts/skills-browse setup --me ${me}${RESET} to link your skills locally"
+  echo -e "  3. Add your first skill to ${CYAN}users/${me}/${RESET}"
+}
+
+cmd_doctor() {
+  local me=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --me) me="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  me=$(get_my_username "$me")
+  if [[ -z "$me" ]]; then
+    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    exit 1
+  fi
+
+  echo -e "${BOLD}Skills Sharing Doctor${RESET}"
+  echo -e "${DIM}User: ${me}${RESET}"
+  echo ""
+
+  local issues=0
+
+  # Check 1: User directory exists
+  local my_dir="$USERS_DIR/$me"
+  if [[ -d "$my_dir" ]]; then
+    echo -e "  ${GREEN}✓${RESET} users/${me}/ exists"
+  else
+    echo -e "  ${RED}✗${RESET} users/${me}/ not found"
+    echo -e "    ${DIM}Run: ./scripts/skills-browse join --me ${me}${RESET}"
+    issues=$((issues + 1))
+  fi
+
+  # Check 2: CODEOWNERS entry
+  local codeowners="$REPO_DIR/CODEOWNERS"
+  if grep -q "/users/${me}/" "$codeowners" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${RESET} CODEOWNERS entry found"
+  else
+    echo -e "  ${RED}✗${RESET} CODEOWNERS entry missing"
+    echo -e "    ${DIM}Run: ./scripts/skills-browse join --me ${me}${RESET}"
+    issues=$((issues + 1))
+  fi
+
+  # Check 3: Skills count
+  if [[ -d "$my_dir" ]]; then
+    local skill_count
+    skill_count=$(find_skills "$my_dir" | wc -l | tr -d ' ')
+    if [[ "$skill_count" -gt 0 ]]; then
+      echo -e "  ${GREEN}✓${RESET} ${skill_count} skill(s) in your directory"
+      find_skills "$my_dir" | while IFS= read -r path; do
+        local sname
+        sname=$(basename "$(dirname "$path")")
+        echo -e "    ${DIM}- ${sname}${RESET}"
+      done
+    else
+      echo -e "  ${YELLOW}△${RESET} No skills yet"
+      echo -e "    ${DIM}Add a SKILL.md to get started${RESET}"
+    fi
+  fi
+
+  # Check 4: Agent symlinks
+  for agent in claude cursor; do
+    local dest="$HOME/.${agent}/skills"
+    if [[ -L "$dest" ]]; then
+      local target
+      target=$(readlink "$dest")
+      if [[ "$target" == "$my_dir" ]]; then
+        echo -e "  ${GREEN}✓${RESET} ~/.${agent}/skills → ${my_dir}"
+      else
+        echo -e "  ${YELLOW}△${RESET} ~/.${agent}/skills → ${target} (not linked to your directory)"
+        echo -e "    ${DIM}Expected: ${my_dir}${RESET}"
+        issues=$((issues + 1))
+      fi
+    elif [[ -d "$dest" ]]; then
+      echo -e "  ${YELLOW}△${RESET} ~/.${agent}/skills/ is a directory (not a symlink)"
+      echo -e "    ${DIM}Back up and remove, then run: ./scripts/skills-browse setup --me ${me} --agent ${agent}${RESET}"
+      issues=$((issues + 1))
+    else
+      echo -e "  ${RED}✗${RESET} ~/.${agent}/skills not found"
+      echo -e "    ${DIM}Run: ./scripts/skills-browse setup --me ${me} --agent ${agent}${RESET}"
+      issues=$((issues + 1))
+    fi
+  done
+
+  # Check 5: Git status
+  echo ""
+  local unpushed
+  unpushed=$(git -C "$REPO_DIR" log --oneline origin/main..HEAD 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$unpushed" -gt 0 ]]; then
+    echo -e "  ${YELLOW}△${RESET} ${unpushed} unpushed commit(s)"
+    echo -e "    ${DIM}Run: git push${RESET}"
+  else
+    echo -e "  ${GREEN}✓${RESET} Up to date with remote"
+  fi
+
+  # Summary
+  echo ""
+  if [[ "$issues" -eq 0 ]]; then
+    echo -e "${GREEN}All checks passed!${RESET}"
+  else
+    echo -e "${YELLOW}${issues} issue(s) found. See suggestions above.${RESET}"
+  fi
+}
+
 cmd_setup() {
   local me=""
   local agent="all"
@@ -356,6 +566,8 @@ command="${1:-}"
 shift || true
 
 case "$command" in
+  join)    cmd_join "$@" ;;
+  doctor)  cmd_doctor "$@" ;;
   list)    cmd_list "$@" ;;
   search)  cmd_search "$@" ;;
   show)    cmd_show "$@" ;;
