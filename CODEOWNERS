@@ -1,0 +1,11 @@
+# Each user owns their own directory.
+# Add your entry when you join.
+
+# /users/tomoya-nakatani/   @tomoya-nakatani
+# /users/akira-yui/         @akira-yui
+
+# Shared resources require maintainer review
+/starter-kit/             @tomoya-nakatani
+/.github/                 @tomoya-nakatani
+/CODEOWNERS               @tomoya-nakatani
+/scripts/                 @tomoya-nakatani

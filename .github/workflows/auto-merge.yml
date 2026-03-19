@@ -1,0 +1,48 @@
+name: Auto Merge Personal Skills
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v46
+
+      - name: Check if all changes are in author's directory
+        id: check
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          ALLOWED_PREFIX="users/${PR_AUTHOR}/"
+
+          for file in ${ALL_CHANGED_FILES}; do
+            if [[ ! "$file" == ${ALLOWED_PREFIX}* ]]; then
+              echo "auto_merge=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::${file} is outside ${ALLOWED_PREFIX} — manual review required"
+              exit 0
+            fi
+          done
+
+          echo "auto_merge=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::All changes are within ${ALLOWED_PREFIX}"
+
+      - name: Auto approve and merge
+        if: steps.check.outputs.auto_merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr review "${PR_NUMBER}" --approve --body "Auto-approved: changes are within author's personal directory."
+          gh pr merge "${PR_NUMBER}" --squash --auto
