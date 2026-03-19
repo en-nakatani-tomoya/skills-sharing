@@ -12,12 +12,15 @@ jobs:
   check-and-merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Get changed files
         id: changed
-        uses: tj-actions/changed-files@v46
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/files" \
+            --paginate --jq '.[].filename' > /tmp/changed_files.txt
+          echo "all_changed_files=$(tr '\n' ' ' < /tmp/changed_files.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Check if all changes are in author's directory
         id: check
