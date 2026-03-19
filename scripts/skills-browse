@@ -35,6 +35,7 @@ ${BOLD}COMMANDS${RESET}
 ${BOLD}OPTIONS (join)${RESET}
   --me <name>                  自分の GitHub ユーザー名（省略時は gh CLI から取得）
   --gh-user <name>             CODEOWNERS 用の GitHub ユーザー名（--me と異なる場合）
+  --auto                       ファイル作成後に commit / push / PR 作成まで自動実行
 
 ${BOLD}OPTIONS (list)${RESET}
   --user <name>                特定ユーザーのスキルのみ表示
@@ -312,11 +313,13 @@ cmd_install() {
 cmd_join() {
   local me=""
   local gh_user=""
+  local auto=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --me) me="$2"; shift 2 ;;
       --gh-user) gh_user="$2"; shift 2 ;;
+      --auto) auto=true; shift ;;
       *) shift ;;
     esac
   done
@@ -339,65 +342,88 @@ cmd_join() {
   fi
 
   local my_dir="$USERS_DIR/$me"
+  local codeowners="$REPO_DIR/CODEOWNERS"
+  local owner_entry="/users/${me}/   @${gh_user}"
+  local dir_created=false
+  local codeowners_updated=false
 
-  # Step 1: Check if already joined
+  # Step 1: Create directory from template
   if [[ -d "$my_dir" ]]; then
     echo -e "${YELLOW}Directory users/${me} already exists. Skipping creation.${RESET}"
   else
-    echo -e "${BOLD}[1/4] Creating directory from template...${RESET}"
+    echo -e "${BOLD}[1/2] Creating directory from template...${RESET}"
     cp -r "$USERS_DIR/.template" "$my_dir"
     echo -e "${GREEN}  Created users/${me}/${RESET}"
+    dir_created=true
   fi
 
   # Step 2: Update CODEOWNERS
-  local codeowners="$REPO_DIR/CODEOWNERS"
-  local owner_entry="/users/${me}/   @${gh_user}"
-
   if grep -q "/users/${me}/" "$codeowners" 2>/dev/null; then
-    echo -e "${DIM}[2/4] CODEOWNERS entry already exists. Skipping.${RESET}"
+    echo -e "${DIM}[2/2] CODEOWNERS entry already exists. Skipping.${RESET}"
   else
-    echo -e "${BOLD}[2/4] Adding CODEOWNERS entry...${RESET}"
+    echo -e "${BOLD}[2/2] Adding CODEOWNERS entry...${RESET}"
     local marker="# Shared resources require maintainer review"
     sed -i '' "s|${marker}|${owner_entry}\n\n${marker}|" "$codeowners"
     echo -e "${GREEN}  Added: ${owner_entry}${RESET}"
+    codeowners_updated=true
   fi
 
-  # Step 3: Create branch and commit
-  echo -e "${BOLD}[3/4] Creating commit...${RESET}"
-  local branch="add-${me}"
+  if $auto; then
+    # --auto: commit, push, PR creation
+    if [[ -n "$(git -C "$REPO_DIR" status --porcelain --untracked-files=no)" ]]; then
+      echo -e "${RED}Error: Working tree has uncommitted changes. Commit or stash first.${RESET}" >&2
+      exit 1
+    fi
 
-  git -C "$REPO_DIR" checkout -b "$branch" 2>/dev/null || git -C "$REPO_DIR" checkout "$branch" 2>/dev/null || true
-  git -C "$REPO_DIR" add "users/${me}/" CODEOWNERS
-  git -C "$REPO_DIR" commit -m "Add ${me}" --quiet
-  echo -e "${GREEN}  Committed on branch ${branch}${RESET}"
+    echo ""
+    echo -e "${BOLD}[auto] Creating branch and commit...${RESET}"
+    local branch="add-${me}"
 
-  # Step 4: Push and create PR
-  echo -e "${BOLD}[4/4] Pushing and creating PR...${RESET}"
-  git -C "$REPO_DIR" push -u origin "$branch" --quiet 2>&1
+    git -C "$REPO_DIR" checkout -b "$branch" 2>/dev/null || git -C "$REPO_DIR" checkout "$branch" 2>/dev/null || true
+    git -C "$REPO_DIR" add "users/${me}/" CODEOWNERS
+    git -C "$REPO_DIR" commit -m "Add ${me}" --quiet
+    echo -e "${GREEN}  Committed on branch ${branch}${RESET}"
 
-  if command -v gh &>/dev/null; then
-    local pr_url
-    pr_url=$(gh pr create \
-      --repo "$(git -C "$REPO_DIR" remote get-url origin)" \
-      --title "Add ${me}" \
-      --body "## New member: ${me}
+    echo -e "${BOLD}[auto] Pushing and creating PR...${RESET}"
+    git -C "$REPO_DIR" push -u origin "$branch" --quiet 2>&1
+
+    if command -v gh &>/dev/null; then
+      local pr_url
+      pr_url=$(gh pr create \
+        --repo "$(git -C "$REPO_DIR" remote get-url origin)" \
+        --title "Add ${me}" \
+        --body "## New member: ${me}
 
 - Created \`users/${me}/\` from template
 - Added CODEOWNERS entry: \`${owner_entry}\`" \
-      2>&1) || true
+        2>&1) || true
 
-    if [[ -n "$pr_url" ]]; then
-      echo -e "${GREEN}  PR created: ${pr_url}${RESET}"
+      if [[ -n "$pr_url" ]]; then
+        echo -e "${GREEN}  PR created: ${pr_url}${RESET}"
+      fi
+    else
+      echo -e "${DIM}  gh CLI not found. Create a PR manually on GitHub.${RESET}"
     fi
-  else
-    echo -e "${DIM}  gh CLI not found. Create a PR manually on GitHub.${RESET}"
-  fi
 
-  echo ""
-  echo -e "${BOLD}Done!${RESET} Next steps:"
-  echo -e "  1. Wait for PR to be merged (CODEOWNERS change requires maintainer approval)"
-  echo -e "  2. Run ${CYAN}./scripts/skills-browse setup --me ${me}${RESET} to link your skills locally"
-  echo -e "  3. Add your first skill to ${CYAN}users/${me}/${RESET}"
+    echo ""
+    echo -e "${BOLD}Done!${RESET} Next steps:"
+    echo -e "  1. Wait for PR to be merged (CODEOWNERS change requires maintainer approval)"
+    echo -e "  2. Run ${CYAN}./scripts/skills-browse setup --me ${me}${RESET} to link your skills locally"
+    echo -e "  3. Add your first skill to ${CYAN}users/${me}/${RESET}"
+  else
+    # Default: file changes only, print manual commands
+    echo ""
+    echo -e "${BOLD}Done!${RESET} Run the following commands to complete:"
+    echo ""
+    echo -e "  ${CYAN}git checkout -b add-${me}${RESET}"
+    echo -e "  ${CYAN}git add users/${me}/ CODEOWNERS${RESET}"
+    echo -e "  ${CYAN}git commit -m \"Add ${me}\"${RESET}"
+    echo -e "  ${CYAN}git push -u origin HEAD${RESET}"
+    echo -e "  ${CYAN}gh pr create --title \"Add ${me}\"${RESET}"
+    echo ""
+    echo -e "${DIM}After PR is merged:${RESET}"
+    echo -e "  ${CYAN}./scripts/skills-browse setup --me ${me}${RESET}"
+  fi
 }
 
 cmd_doctor() {
