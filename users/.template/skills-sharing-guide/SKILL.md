@@ -79,7 +79,7 @@ skills-sharing/
 
 ```bash
 # 1. リポジトリを clone（まだの場合）
-git clone git@github.com:en-nakatani-tomoya/skills-sharing.git ~/skills-sharing
+git clone git@github.com:<ORG>/skills-sharing.git ~/skills-sharing
 cd ~/skills-sharing
 
 # 2. join コマンドを実行（ディレクトリ作成 + CODEOWNERS 追加）

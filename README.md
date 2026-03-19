@@ -2,6 +2,8 @@
 
 社内エンジニアのエージェントスキルを共有・閲覧するためのリポジトリ。
 
+> **Note:** このリポジトリは現在個人アカウント (`en-nakatani-tomoya`) でホストしていますが、将来的にオーガナイゼーションへ移行する予定です。移行時にはリポジトリの Transfer 機能を使用し、clone URL のリダイレクトが自動設定されます。ただし、リダイレクトは恒久的ではないため、移行後は各自の remote URL の更新をお願いします。
+
 ## 構成
 
 ```
@@ -20,7 +22,7 @@ scripts/         ブラウズ・フォーク用ツール
 ### 1. リポジトリを clone する
 
 ```bash
-git clone git@github.com:en-nakatani-tomoya/skills-sharing.git ~/skills-sharing
+git clone git@github.com:<ORG>/skills-sharing.git ~/skills-sharing
 cd ~/skills-sharing
 ```
 

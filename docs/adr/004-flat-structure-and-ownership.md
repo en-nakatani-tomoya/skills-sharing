@@ -25,7 +25,7 @@ ADR-002 の Monorepo 設計では、ユーザーディレクトリ配下を `cla
 **変更前（ADR-002）:**
 
 ```
-users/tomoya-nakatani/
+users/sample-user/
 ├── claude/
 │   └── skills/
 │       ├── dev-workflow/SKILL.md
@@ -38,7 +38,7 @@ users/tomoya-nakatani/
 **変更後:**
 
 ```
-users/tomoya-nakatani/
+users/sample-user/
 ├── README.md
 ├── dev-workflow/SKILL.md
 ├── pr-review/SKILL.md
@@ -48,8 +48,8 @@ users/tomoya-nakatani/
 ### 2. 自分のスキルはシンボリックリンクで全エージェントに配置する
 
 ```bash
-ln -s ~/skills-sharing/users/tomoya-nakatani ~/.claude/skills
-ln -s ~/skills-sharing/users/tomoya-nakatani ~/.cursor/skills
+ln -s ~/skills-sharing/users/<your-name> ~/.claude/skills
+ln -s ~/skills-sharing/users/<your-name> ~/.cursor/skills
 ```
 
 シンボリックリンク 1 本で全スキルが全エージェントで使える。スキルの追加・削除時にリンクの張り直しが不要。

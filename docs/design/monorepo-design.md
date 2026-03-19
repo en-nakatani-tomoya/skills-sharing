@@ -16,14 +16,14 @@ skills-sharing/
 │
 ├── users/
 │   ├── .template/                  # 初回参加用テンプレート
-│   ├── tomoya-nakatani/
+│   ├── sample-user/
 │   │   ├── README.md               # 自己紹介・スキル一覧（任意）
 │   │   ├── dev-workflow/
 │   │   │   └── SKILL.md
 │   │   └── pr-review/
 │   │       └── SKILL.md
 │   │
-│   ├── akira-yui/
+│   ├── another-user/
 │   │   ├── README.md
 │   │   ├── code-refactor/
 │   │   │   └── SKILL.md
@@ -133,8 +133,8 @@ jobs:
 
 ```
 # 個人ディレクトリは各自がオーナー
-/users/tomoya-nakatani/   @tomoya-nakatani
-/users/akira-yui/         @akira-yui
+/users/sample-user/      @sample-user
+/users/another-user/     @another-user
 
 # starter-kit はメンテナーチームがオーナー
 /starter-kit/             @org/skill-maintainers
@@ -155,8 +155,8 @@ jobs:
 自分のディレクトリを各エージェントのスキルフォルダにリンクする（ADR-004）。
 
 ```bash
-ln -s ~/skills-sharing/users/tomoya-nakatani ~/.claude/skills
-ln -s ~/skills-sharing/users/tomoya-nakatani ~/.cursor/skills
+ln -s ~/skills-sharing/users/<your-name> ~/.claude/skills
+ln -s ~/skills-sharing/users/<your-name> ~/.cursor/skills
 ```
 
 - シンボリックリンク 1 本で全スキルが全エージェントで使える
@@ -168,7 +168,7 @@ ln -s ~/skills-sharing/users/tomoya-nakatani ~/.cursor/skills
 他人のスキルを使いたい場合、自分のディレクトリにコピーして取り込む（ADR-004）。
 
 ```bash
-cp -r users/sample-user/test-generator users/tomoya-nakatani/test-generator
+cp -r users/sample-user/test-generator users/<your-name>/test-generator
 # カスタマイズして自分のスキルとして push
 ```
 
@@ -204,8 +204,8 @@ skills-browse setup
 
 ```bash
 # 参加スクリプト（構想）
-./scripts/join.sh tomoya-nakatani
-# → users/tomoya-nakatani/ を雛形から作成
+./scripts/join.sh <your-name>
+# → users/<your-name>/ を雛形から作成
 # → CODEOWNERS にエントリー追加
 # → PR を自動作成
 ```
