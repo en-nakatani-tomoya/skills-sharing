@@ -111,6 +111,28 @@ skill_info_from_path() {
   echo "$user" "$skill_name"
 }
 
+update_codeowners() {
+  local codeowners="$1"
+  local owner_entry="$2"
+  local marker="# Shared resources require maintainer review"
+
+  if ! grep -qF "$marker" "$codeowners"; then
+    echo -e "${RED}Error: Marker not found in CODEOWNERS${RESET}" >&2
+    echo -e "${RED}  Expected: ${marker}${RESET}" >&2
+    return 1
+  fi
+
+  awk -v entry="$owner_entry" -v marker="$marker" '
+    $0 ~ marker { print entry; print "" }
+    { print }
+  ' "$codeowners" > "${codeowners}.tmp" && mv "${codeowners}.tmp" "$codeowners"
+
+  if ! grep -qF "$owner_entry" "$codeowners"; then
+    echo -e "${RED}Error: CODEOWNERS update failed — entry not found after write${RESET}" >&2
+    return 1
+  fi
+}
+
 # --- Commands ---
 
 cmd_users() {
@@ -362,8 +384,9 @@ cmd_join() {
     echo -e "${DIM}[2/2] CODEOWNERS entry already exists. Skipping.${RESET}"
   else
     echo -e "${BOLD}[2/2] Adding CODEOWNERS entry...${RESET}"
-    local marker="# Shared resources require maintainer review"
-    sed -i '' "s|${marker}|${owner_entry}\n\n${marker}|" "$codeowners"
+    if ! update_codeowners "$codeowners" "$owner_entry"; then
+      exit 1
+    fi
     echo -e "${GREEN}  Added: ${owner_entry}${RESET}"
     codeowners_updated=true
   fi
