@@ -73,41 +73,65 @@ skills-sharing/
 
 ## Common Tasks
 
-### 新規参加者の案内
+### 新規参加者のオンボーディング
+
+`join` コマンドで、テンプレートコピー → CODEOWNERS 追加 → コミット → PR 作成まで一括で行える。
 
 ```bash
 # 1. リポジトリを clone
 git clone git@github.com:en-nakatani-tomoya/skills-sharing.git ~/skills-sharing
+cd ~/skills-sharing
 
-# 2. テンプレートからディレクトリ作成
-cp -r users/.template users/<github-username>
+# 2. join コマンドを実行（ディレクトリ作成 → CODEOWNERS → commit → PR 作成）
+./scripts/skills-browse join --me <github-username>
 
-# 3. README.md を編集
-
-# 4. CODEOWNERS にエントリー追加
-# /users/<github-username>/   @<github-username>
-
-# 5. PR を作成（初回はメンテナーが approve）
-git checkout -b add-<github-username>
-git add users/<github-username>/ CODEOWNERS
-git commit -m "Add <github-username>"
-git push -u origin HEAD
-gh pr create --title "Add <github-username>"
-
-# 6. ローカル環境をセットアップ
+# 3. PR がマージされたら、ローカル環境をセットアップ
 ./scripts/skills-browse setup --me <github-username>
+
+# 4. 環境が正しいか確認
+./scripts/skills-browse doctor --me <github-username>
 ```
 
-### skills-browse の使い方
+join コマンドは以下を自動的に行う：
+- `users/.template/` から `users/<name>/` を作成
+- CODEOWNERS にエントリーを追加
+- ブランチ作成 & コミット
+- push & PR 作成（gh CLI がある場合）
+
+初回 PR は CODEOWNERS の変更を含むため、メンテナーの approve が必要。
+
+### ローカル環境の診断
+
+`doctor` コマンドで環境の状態を確認できる。問題があれば修正コマンドを提案してくれる。
 
 ```bash
+./scripts/skills-browse doctor --me <name>
+```
+
+チェック項目：
+- ユーザーディレクトリの存在
+- CODEOWNERS エントリーの有無
+- スキルの検出数
+- `~/.claude/skills` / `~/.cursor/skills` のシンボリックリンク状態
+- リモートとの同期状態
+
+### skills-browse 全コマンドリファレンス
+
+```bash
+# --- オンボーディング ---
+./scripts/skills-browse join --me <name>              # 参加（初回セットアップ一括実行）
+./scripts/skills-browse setup --me <name>             # ローカル環境セットアップ（シンボリックリンク作成）
+./scripts/skills-browse doctor --me <name>            # ローカル環境の診断
+
+# --- ブラウズ ---
 ./scripts/skills-browse list                          # 全スキル一覧
 ./scripts/skills-browse list --user <name>            # 特定ユーザーのスキル
 ./scripts/skills-browse search "<keyword>"            # キーワード検索
 ./scripts/skills-browse show <user>/<skill>           # スキル詳細表示
-./scripts/skills-browse install <user>/<skill>        # フォーク（自分のディレクトリにコピー）
-./scripts/skills-browse setup --me <name>             # ローカル環境セットアップ
 ./scripts/skills-browse users                         # 参加者一覧
+
+# --- フォーク ---
+./scripts/skills-browse install <user>/<skill>        # 他人のスキルを自分のディレクトリにコピー
 ```
 
 ### 還元のフロー
