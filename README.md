@@ -7,7 +7,7 @@
 ```
 users/           各自のスキル（自分のディレクトリは自由に管理）
 starter-kit/     推奨スキル集（レビュー必須）
-scripts/         ブラウズ・インストール用ツール
+scripts/         ブラウズ・フォーク用ツール
 ```
 
 ## 参加方法
@@ -15,7 +15,7 @@ scripts/         ブラウズ・インストール用ツール
 1. このリポジトリを clone する
 
 ```bash
-git clone git@github.com:tomoya-nakatani/skills-sharing.git
+git clone git@github.com:en-nakatani-tomoya/skills-sharing.git ~/skills-sharing
 ```
 
 2. 自分のディレクトリを作成する
@@ -28,6 +28,19 @@ cp -r users/.template users/<your-github-username>
 
 自分のディレクトリへの変更は自動マージされます。
 
+## ローカル環境のセットアップ
+
+自分のディレクトリを各エージェントのスキルフォルダにリンクします。
+
+```bash
+./scripts/skills-browse setup --me <your-github-username>
+# → ~/.claude/skills → users/<you>/ のシンボリックリンクを作成
+# → ~/.cursor/skills → users/<you>/ のシンボリックリンクを作成
+```
+
+以降、スキルの追加・編集は `users/<you>/` で行い、`git push` するだけです。
+`git pull` すれば最新のスキルがローカルに即反映されます。
+
 ## スキルのブラウズ
 
 ```bash
@@ -37,19 +50,26 @@ cp -r users/.template users/<your-github-username>
 # キーワード検索
 ./scripts/skills-browse search "PR レビュー"
 
-# 特定ユーザーのスキル一覧
-./scripts/skills-browse list --user akira-yui
+# スキルの詳細を見る
+./scripts/skills-browse show sample-user/test-generator
 ```
 
-## スキルのインストール
+## 他の人のスキルを使う
+
+他の人のスキルは自分のディレクトリに**フォーク（コピー）**して使います。
 
 ```bash
-# 他の人のスキルを Claude Code にインストール
-./scripts/skills-browse install <user>/<skill> --agent claude
+# 他の人のスキルを自分のディレクトリにコピー
+./scripts/skills-browse install sample-user/test-generator
 
-# Cursor にインストール
-./scripts/skills-browse install <user>/<skill> --agent cursor
+# カスタマイズして自分のスキルとして push
+git add users/<you>/test-generator
+git commit -m "Add test-generator (forked from sample-user)"
+git push
 ```
+
+シンボリックリンクで直接参照するのではなく、コピーして自分のものにするのが基本方針です。
+詳しくは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
 ## ルール
 

@@ -17,7 +17,7 @@ RESET='\033[0m'
 
 usage() {
   cat <<EOF
-${BOLD}skills-browse${RESET} — 社内スキルのブラウズ・インストールツール
+${BOLD}skills-browse${RESET} — 社内スキルのブラウズ・フォークツール
 
 ${BOLD}USAGE${RESET}
   skills-browse <command> [options]
@@ -26,28 +26,40 @@ ${BOLD}COMMANDS${RESET}
   list                         全スキルの一覧を表示
   search <keyword>             キーワードで SKILL.md を全文検索
   show <user>/<skill>          スキルの詳細を表示
-  install <user>/<skill>       スキルをローカルにインストール
+  install <user>/<skill>       スキルを自分のディレクトリにフォーク
+  setup                        ローカル環境のセットアップ（シンボリックリンク作成）
   users                        参加ユーザー一覧
 
 ${BOLD}OPTIONS (list)${RESET}
   --user <name>                特定ユーザーのスキルのみ表示
-  --agent <claude|cursor>      特定エージェントのスキルのみ表示
 
 ${BOLD}OPTIONS (install)${RESET}
-  --agent <claude|cursor>      インストール先のエージェント (必須)
-  --global                     ユーザーレベル (~/) にインストール
-  --copy                       シンボリックリンクの代わりにコピー
+  --me <name>                  自分の GitHub ユーザー名（省略時は git config から取得）
+
+${BOLD}OPTIONS (setup)${RESET}
+  --me <name>                  自分の GitHub ユーザー名（省略時は git config から取得）
+  --agent <claude|cursor|all>  対象エージェント (デフォルト: all)
 
 ${BOLD}EXAMPLES${RESET}
   skills-browse list
-  skills-browse list --user akira-yui
-  skills-browse search "PR レビュー"
-  skills-browse show tomoya-nakatani/dev-workflow
-  skills-browse install akira-yui/code-refactor --agent claude
+  skills-browse list --user sample-user
+  skills-browse search "テスト"
+  skills-browse show sample-user/test-generator
+  skills-browse install sample-user/test-generator
+  skills-browse setup --agent claude
 EOF
 }
 
 # --- Helpers ---
+
+get_my_username() {
+  local me="${1:-}"
+  if [[ -n "$me" ]]; then
+    echo "$me"
+    return
+  fi
+  git config user.name 2>/dev/null | tr ' ' '-' | tr '[:upper:]' '[:lower:]' || true
+}
 
 parse_frontmatter() {
   local file="$1"
@@ -66,22 +78,18 @@ find_skills() {
 skill_info_from_path() {
   local skill_path="$1"
   local rel="${skill_path#"$REPO_DIR"/}"
-
   local user=""
-  local agent=""
   local skill_name=""
 
   if [[ "$rel" == users/* ]]; then
     user=$(echo "$rel" | cut -d/ -f2)
-    agent=$(echo "$rel" | cut -d/ -f3)
     skill_name=$(basename "$(dirname "$skill_path")")
   elif [[ "$rel" == starter-kit/* ]]; then
     user="starter-kit"
-    agent=$(echo "$rel" | cut -d/ -f2)
     skill_name=$(basename "$(dirname "$skill_path")")
   fi
 
-  echo "$user" "$agent" "$skill_name"
+  echo "$user" "$skill_name"
 }
 
 # --- Commands ---
@@ -101,12 +109,10 @@ cmd_users() {
 
 cmd_list() {
   local filter_user=""
-  local filter_agent=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --user) filter_user="$2"; shift 2 ;;
-      --agent) filter_agent="$2"; shift 2 ;;
       *) shift ;;
     esac
   done
@@ -129,16 +135,15 @@ cmd_list() {
   echo ""
 
   while IFS= read -r skill_path; do
-    read -r user agent skill_name <<< "$(skill_info_from_path "$skill_path")"
+    read -r user skill_name <<< "$(skill_info_from_path "$skill_path")"
     [[ -z "$user" ]] && continue
-    [[ -n "$filter_agent" && "$agent" != "$filter_agent" ]] && continue
 
     local desc
     desc=$(parse_frontmatter "$skill_path" "description")
     [[ -z "$desc" ]] && desc="${DIM}(no description)${RESET}"
 
-    printf "  ${CYAN}%-22s${RESET} ${GREEN}%-20s${RESET} ${YELLOW}%-8s${RESET} %s\n" \
-      "$user" "$skill_name" "$agent" "$desc"
+    printf "  ${CYAN}%-22s${RESET} ${GREEN}%-20s${RESET} %s\n" \
+      "$user" "$skill_name" "$desc"
     found=$((found + 1))
   done < <(find_skills "$search_dir")
 
@@ -160,15 +165,15 @@ cmd_search() {
   local found=0
   while IFS= read -r skill_path; do
     if grep -qi "$keyword" "$skill_path" 2>/dev/null; then
-      read -r user agent skill_name <<< "$(skill_info_from_path "$skill_path")"
+      read -r user skill_name <<< "$(skill_info_from_path "$skill_path")"
       [[ -z "$user" ]] && continue
 
       local desc
       desc=$(parse_frontmatter "$skill_path" "description")
       [[ -z "$desc" ]] && desc="${DIM}(no description)${RESET}"
 
-      printf "  ${CYAN}%-22s${RESET} ${GREEN}%-20s${RESET} ${YELLOW}%-8s${RESET} %s\n" \
-        "$user" "$skill_name" "$agent" "$desc"
+      printf "  ${CYAN}%-22s${RESET} ${GREEN}%-20s${RESET} %s\n" \
+        "$user" "$skill_name" "$desc"
 
       grep -n -i --color=always "$keyword" "$skill_path" 2>/dev/null | head -3 | while IFS= read -r line; do
         echo "    $line"
@@ -193,7 +198,7 @@ cmd_show() {
 
   local skill_path=""
   while IFS= read -r path; do
-    read -r u _ s <<< "$(skill_info_from_path "$path")"
+    read -r u s <<< "$(skill_info_from_path "$path")"
     if [[ "$u" == "$user" && "$s" == "$skill_name" ]]; then
       skill_path="$path"
       break
@@ -205,13 +210,12 @@ cmd_show() {
     exit 1
   fi
 
-  local name desc agent
+  local name desc
   name=$(parse_frontmatter "$skill_path" "name")
   desc=$(parse_frontmatter "$skill_path" "description")
-  read -r _ agent _ <<< "$(skill_info_from_path "$skill_path")"
 
   echo -e "${BOLD}${name:-$skill_name}${RESET}"
-  echo -e "${DIM}Owner: ${user} | Agent: ${agent}${RESET}"
+  echo -e "${DIM}Owner: ${user}${RESET}"
   [[ -n "$desc" ]] && echo -e "${DIM}${desc}${RESET}"
   echo -e "${DIM}Path: ${skill_path}${RESET}"
   echo ""
@@ -221,103 +225,129 @@ cmd_show() {
 
 cmd_install() {
   local target=""
-  local agent=""
-  local global=false
-  local copy=false
+  local me=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --agent) agent="$2"; shift 2 ;;
-      --global) global=true; shift ;;
-      --copy) copy=true; shift ;;
+      --me) me="$2"; shift 2 ;;
       *) target="$1"; shift ;;
     esac
   done
 
   if [[ -z "$target" ]]; then
-    echo -e "${RED}Error: Specify <user>/<skill> or 'starter-kit'${RESET}" >&2
-    exit 1
-  fi
-  if [[ -z "$agent" ]]; then
-    echo -e "${RED}Error: --agent is required (claude or cursor)${RESET}" >&2
+    echo -e "${RED}Error: Specify <user>/<skill> or 'starter-kit/<skill>'${RESET}" >&2
     exit 1
   fi
 
-  # Determine destination
-  local dest_base
+  me=$(get_my_username "$me")
+  if [[ -z "$me" ]]; then
+    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    exit 1
+  fi
+
+  local source_user="${target%%/*}"
+  local skill_name="${target#*/}"
+
+  if [[ "$source_user" == "$me" ]]; then
+    echo -e "${RED}Error: Cannot fork your own skill${RESET}" >&2
+    exit 1
+  fi
+
+  # Find the source skill
+  local source_path=""
+  while IFS= read -r path; do
+    read -r u s <<< "$(skill_info_from_path "$path")"
+    if [[ "$u" == "$source_user" && "$s" == "$skill_name" ]]; then
+      source_path="$(dirname "$path")"
+      break
+    fi
+  done < <(find_skills "$REPO_DIR")
+
+  if [[ -z "$source_path" ]]; then
+    echo -e "${RED}Error: Skill '${target}' not found${RESET}" >&2
+    exit 1
+  fi
+
+  local dest="$USERS_DIR/$me/$skill_name"
+
+  if [[ -e "$dest" ]]; then
+    echo -e "${YELLOW}Skip: ${skill_name} already exists in your directory${RESET}"
+    echo -e "${DIM}  ${dest}${RESET}"
+    exit 0
+  fi
+
+  # Ensure user directory exists
+  mkdir -p "$USERS_DIR/$me"
+
+  cp -r "$source_path" "$dest"
+  echo -e "${GREEN}Forked: ${source_user}/${skill_name} → users/${me}/${skill_name}${RESET}"
+  echo ""
+  echo -e "${DIM}Next steps:${RESET}"
+  echo -e "${DIM}  1. Edit ${dest}/SKILL.md to customize${RESET}"
+  echo -e "${DIM}  2. git add users/${me}/${skill_name}${RESET}"
+  echo -e "${DIM}  3. git commit & push${RESET}"
+}
+
+cmd_setup() {
+  local me=""
+  local agent="all"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --me) me="$2"; shift 2 ;;
+      --agent) agent="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  me=$(get_my_username "$me")
+  if [[ -z "$me" ]]; then
+    echo -e "${RED}Error: Cannot determine your username. Use --me <name>${RESET}" >&2
+    exit 1
+  fi
+
+  local my_dir="$USERS_DIR/$me"
+  if [[ ! -d "$my_dir" ]]; then
+    echo -e "${RED}Error: Directory users/${me} not found. Create it first.${RESET}" >&2
+    exit 1
+  fi
+
+  local agents=()
   case "$agent" in
-    claude)
-      if $global; then
-        dest_base="$HOME/.claude/skills"
-      else
-        dest_base=".claude/skills"
-      fi
-      ;;
-    cursor)
-      if $global; then
-        dest_base="$HOME/.cursor/skills"
-      else
-        dest_base=".cursor/skills"
-      fi
-      ;;
+    all)    agents=(claude cursor) ;;
+    claude) agents=(claude) ;;
+    cursor) agents=(cursor) ;;
     *)
-      echo -e "${RED}Error: Unknown agent '${agent}'. Use 'claude' or 'cursor'${RESET}" >&2
+      echo -e "${RED}Error: Unknown agent '${agent}'. Use claude, cursor, or all${RESET}" >&2
       exit 1
       ;;
   esac
 
-  # Find matching skills
-  local skills_to_install=()
+  for a in "${agents[@]}"; do
+    local dest="$HOME/.${a}/skills"
 
-  if [[ "$target" == "starter-kit" ]]; then
-    while IFS= read -r path; do
-      read -r _ a _ <<< "$(skill_info_from_path "$path")"
-      [[ "$a" == "$agent" ]] && skills_to_install+=("$path")
-    done < <(find_skills "$STARTER_KIT_DIR")
-  else
-    local user="${target%%/*}"
-    local skill_name="${target#*/}"
-
-    while IFS= read -r path; do
-      read -r u a s <<< "$(skill_info_from_path "$path")"
-      if [[ "$u" == "$user" && "$s" == "$skill_name" && "$a" == "$agent" ]]; then
-        skills_to_install+=("$path")
-        break
+    if [[ -L "$dest" ]]; then
+      local current_target
+      current_target=$(readlink "$dest")
+      if [[ "$current_target" == "$my_dir" ]]; then
+        echo -e "${DIM}Skip: ~/.${a}/skills already linked to ${my_dir}${RESET}"
+        continue
       fi
-    done < <(find_skills "$REPO_DIR")
-  fi
-
-  if [[ ${#skills_to_install[@]} -eq 0 ]]; then
-    echo -e "${RED}Error: No skills found for '${target}' (agent: ${agent})${RESET}" >&2
-    exit 1
-  fi
-
-  # Install each skill
-  for skill_path in "${skills_to_install[@]}"; do
-    local skill_dir
-    skill_dir=$(dirname "$skill_path")
-    local skill_name
-    skill_name=$(basename "$skill_dir")
-    local dest="$dest_base/$skill_name"
-
-    mkdir -p "$(dirname "$dest")"
-
-    if [[ -e "$dest" ]]; then
-      echo -e "${YELLOW}Skip: ${skill_name} (already exists at ${dest})${RESET}"
+      echo -e "${YELLOW}Warning: ~/.${a}/skills is already a symlink → ${current_target}${RESET}"
+      echo -e "${YELLOW}  Remove it first if you want to re-link: rm ~/.${a}/skills${RESET}"
       continue
     fi
 
-    if $copy; then
-      cp -r "$skill_dir" "$dest"
-      echo -e "${GREEN}Copied: ${skill_name} → ${dest}${RESET}"
-    else
-      ln -s "$skill_dir" "$dest"
-      echo -e "${GREEN}Linked: ${skill_name} → ${dest}${RESET}"
+    if [[ -d "$dest" ]]; then
+      echo -e "${YELLOW}Warning: ~/.${a}/skills/ is an existing directory${RESET}"
+      echo -e "${YELLOW}  Back it up and remove it to use symlink: mv ~/.${a}/skills ~/.${a}/skills.bak${RESET}"
+      continue
     fi
-  done
 
-  echo ""
-  echo -e "${DIM}Done. Installed ${#skills_to_install[@]} skill(s) to ${dest_base}${RESET}"
+    mkdir -p "$(dirname "$dest")"
+    ln -s "$my_dir" "$dest"
+    echo -e "${GREEN}Linked: ~/.${a}/skills → ${my_dir}${RESET}"
+  done
 }
 
 # --- Main ---
@@ -330,6 +360,7 @@ case "$command" in
   search)  cmd_search "$@" ;;
   show)    cmd_show "$@" ;;
   install) cmd_install "$@" ;;
+  setup)   cmd_setup "$@" ;;
   users)   cmd_users ;;
   -h|--help|help|"") usage ;;
   *)

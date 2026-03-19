@@ -5,11 +5,8 @@
 ## 使い方
 
 ```bash
-# Claude Code 用の全スキルをインストール
-./scripts/skills-browse install starter-kit --agent claude
-
-# Cursor 用の全スキルをインストール
-./scripts/skills-browse install starter-kit --agent cursor
+# starter-kit のスキルを自分のディレクトリにフォーク
+./scripts/skills-browse install starter-kit/<skill-name>
 ```
 
 ## 収録スキル

@@ -6,6 +6,6 @@
 
 <!-- 自分のスキルの一覧・説明を書いてください -->
 
-| Agent | Skill | 説明 |
-|---|---|---|
-| Claude | example-skill | 説明をここに |
+| Skill | 説明 |
+|---|---|
+| example-skill | 説明をここに |

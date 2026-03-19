@@ -2,6 +2,6 @@
 
 ## Skills
 
-| Agent | Skill | 説明 |
-|---|---|---|
-| Claude | test-generator | テストコードを自動生成する |
+| Skill | 説明 |
+|---|---|
+| test-generator | テストコードを自動生成する |
