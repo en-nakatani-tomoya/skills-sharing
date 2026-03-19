@@ -183,7 +183,7 @@ cmd_search() {
 
   local found=0
   while IFS= read -r skill_path; do
-    if grep -qi "$keyword" "$skill_path" 2>/dev/null; then
+    if grep -F -qi "$keyword" "$skill_path" 2>/dev/null; then
       read -r user skill_name <<< "$(skill_info_from_path "$skill_path")"
       [[ -z "$user" ]] && continue
 
@@ -194,7 +194,7 @@ cmd_search() {
       printf "  ${CYAN}%-22s${RESET} ${GREEN}%-20s${RESET} %s\n" \
         "$user" "$skill_name" "$desc"
 
-      grep -n -i --color=always "$keyword" "$skill_path" 2>/dev/null | head -3 | while IFS= read -r line; do
+      grep -F -n -i --color=always "$keyword" "$skill_path" 2>/dev/null | head -3 | while IFS= read -r line; do
         echo "    $line"
       done
       echo ""
